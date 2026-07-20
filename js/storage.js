@@ -3,6 +3,10 @@
  * 
  * Responsável por persistir análises de vídeos, controlar
  * rate limiting e armazenar a API key do Gemini.
+ *
+ * Inclui índices em memória (por ID, URL e tokens de busca) para
+ * lookups O(1) e pesquisa textual rápida no histórico local —
+ * sem enviar dados a servidores externos.
  * 
  * Padrão: classe global (window.DeepTraceStorage)
  */
@@ -17,6 +21,9 @@ window.DeepTraceStorage = class DeepTraceStorage {
 
     /** Janela de tempo do rate limiting em milissegundos (1 hora) */
     static RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
+
+    /** Tamanho mínimo de token indexado (evita ruído em stopwords curtas) */
+    static MIN_TOKEN_LENGTH = 2;
 
     /**
      * Inicializa o storage.
@@ -43,6 +50,21 @@ window.DeepTraceStorage = class DeepTraceStorage {
 
         /** @type {Array<Object>} Histórico de análises em memória */
         this.history = this._loadFromStorage();
+
+        /** @type {Map<string, Object>} Índice O(1) por ID */
+        this._byId = new Map();
+
+        /** @type {Map<string, Object>} Índice O(1) por URL normalizada */
+        this._byUrl = new Map();
+
+        /**
+         * Índice invertido de busca: token → Set de IDs.
+         * Mantido só em memória (reconstruído no boot) — zero I/O extra no localStorage.
+         * @type {Map<string, Set<string>>}
+         */
+        this._searchIndex = new Map();
+
+        this._rebuildIndexes();
     }
 
     /**
@@ -97,6 +119,14 @@ window.DeepTraceStorage = class DeepTraceStorage {
             timestamp: analysis.timestamp || new Date().toISOString()
         };
 
+        // Remove duplicata por URL (atualiza cache) antes de inserir
+        if (record.url) {
+            const existing = this.getByUrl(record.url);
+            if (existing) {
+                this.history = this.history.filter((item) => item.id !== existing.id);
+            }
+        }
+
         // Insere no início para manter ordenação por data (mais recente primeiro)
         this.history.unshift(record);
 
@@ -105,6 +135,7 @@ window.DeepTraceStorage = class DeepTraceStorage {
             this.history = this.history.slice(0, DeepTraceStorage.MAX_HISTORY);
         }
 
+        this._rebuildIndexes();
         this._saveToStorage();
         return record;
     }
@@ -120,29 +151,112 @@ window.DeepTraceStorage = class DeepTraceStorage {
     }
 
     /**
-     * Busca uma análise em cache pela URL do vídeo.
+     * Busca uma análise em cache pela URL do vídeo (índice O(1)).
      * @param {string} url - URL do vídeo
      * @returns {Object|null} A análise encontrada ou null
      */
     getByUrl(url) {
         if (!url) return null;
-
-        const normalizedUrl = url.trim().toLowerCase();
-        const found = this.history.find(
-            (item) => item.url && item.url.trim().toLowerCase() === normalizedUrl
-        );
-
-        return found || null;
+        const normalizedUrl = this._normalizeUrl(url);
+        return this._byUrl.get(normalizedUrl) || null;
     }
 
     /**
-     * Busca uma análise pelo seu identificador único.
+     * Busca uma análise pelo seu identificador único (índice O(1)).
      * @param {string} id - ID da análise
      * @returns {Object|null} A análise encontrada ou null
      */
     getAnalysisById(id) {
         if (!id) return null;
-        return this.history.find((item) => item.id === id) || null;
+        return this._byId.get(id) || null;
+    }
+
+    /**
+     * Pesquisa textual no banco local via índice invertido.
+     * Cobre título, resumo, veredito, plataforma, URL, alegações,
+     * técnicas de manipulação e transcrição (script do vídeo).
+     *
+     * Todos os termos da query precisam aparecer (AND). Dados
+     * permanecem 100% no cliente — nenhum I/O de rede.
+     *
+     * @param {string} query - Texto livre de busca
+     * @param {Object} [options]
+     * @param {string} [options.platform='all'] - Filtro de plataforma
+     * @param {string} [options.verdict='all'] - Filtro de veredito
+     * @returns {Array<Object>} Análises correspondentes, mais recentes primeiro
+     */
+    search(query, options = {}) {
+        const platform = (options.platform || 'all').toLowerCase();
+        const verdict = (options.verdict || 'all').toLowerCase();
+        const tokens = this._tokenize(query);
+
+        let candidates;
+
+        if (tokens.length === 0) {
+            candidates = this.getHistory();
+        } else {
+            // Interseção dos postings lists (AND) — O(tokens × hits)
+            let matchedIds = null;
+            for (const token of tokens) {
+                const posting = this._searchIndex.get(token);
+                if (!posting || posting.size === 0) {
+                    matchedIds = new Set();
+                    break;
+                }
+                if (matchedIds === null) {
+                    matchedIds = new Set(posting);
+                } else {
+                    for (const id of matchedIds) {
+                        if (!posting.has(id)) matchedIds.delete(id);
+                    }
+                }
+            }
+
+            candidates = [];
+            if (matchedIds) {
+                for (const id of matchedIds) {
+                    const item = this._byId.get(id);
+                    if (item) candidates.push(item);
+                }
+                candidates.sort(
+                    (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
+                );
+            }
+        }
+
+        return candidates.filter((item) => {
+            if (platform !== 'all') {
+                if (platform === 'file') {
+                    if (item.url) return false;
+                } else if ((item.platform || '').toLowerCase() !== platform) {
+                    return false;
+                }
+            }
+            if (verdict !== 'all') {
+                const v = (item.verdict || '').toLowerCase();
+                if (verdict === 'parcial') {
+                    if (!v.includes('parcial')) return false;
+                } else if (!v.includes(verdict)) {
+                    return false;
+                }
+            }
+            return true;
+        });
+    }
+
+    /**
+     * Remove uma análise pelo ID e atualiza índices.
+     * @param {string} id
+     * @returns {boolean} true se removeu
+     */
+    removeAnalysis(id) {
+        if (!id) return false;
+        const before = this.history.length;
+        this.history = this.history.filter((item) => item.id !== id);
+        if (this.history.length === before) return false;
+        this._rebuildIndexes();
+        this._saveToStorage();
+        return true;
     }
 
     /**
@@ -150,7 +264,20 @@ window.DeepTraceStorage = class DeepTraceStorage {
      */
     clearHistory() {
         this.history = [];
+        this._rebuildIndexes();
         this._saveToStorage();
+    }
+
+    /**
+     * Estatísticas leves do banco/índice (diagnóstico de desempenho local).
+     * @returns {{records: number, indexedTokens: number, byUrl: number}}
+     */
+    getIndexStats() {
+        return {
+            records: this.history.length,
+            indexedTokens: this._searchIndex.size,
+            byUrl: this._byUrl.size
+        };
     }
 
     // ─────────────────────────────────────────────
@@ -350,6 +477,103 @@ window.DeepTraceStorage = class DeepTraceStorage {
     // ─────────────────────────────────────────────
 
     /**
+     * Reconstrói índices em memória a partir do histórico atual.
+     * Chamado no boot e após mutações — custo O(n × tokens), n ≤ 50.
+     * @private
+     */
+    _rebuildIndexes() {
+        this._byId = new Map();
+        this._byUrl = new Map();
+        this._searchIndex = new Map();
+
+        for (const record of this.history) {
+            if (!record || !record.id) continue;
+            this._byId.set(record.id, record);
+            if (record.url) {
+                this._byUrl.set(this._normalizeUrl(record.url), record);
+            }
+            this._indexRecord(record);
+        }
+    }
+
+    /**
+     * Indexa um registro no índice invertido de busca.
+     * @param {Object} record
+     * @private
+     */
+    _indexRecord(record) {
+        const parts = [
+            record.title,
+            record.summary,
+            record.verdict,
+            record.platform,
+            record.url,
+            ...(record.manipulationTechniques || []),
+            record.metadata?.transcription || '',
+            record.metadata?.videoTitle || ''
+        ];
+
+        if (Array.isArray(record.claims)) {
+            for (const claim of record.claims) {
+                if (!claim) continue;
+                parts.push(
+                    claim.claim,
+                    claim.verdict,
+                    claim.reasoning,
+                    ...(Array.isArray(claim.sources) ? claim.sources : [])
+                );
+            }
+        }
+
+        const tokens = this._tokenize(parts.filter(Boolean).join(' '));
+        for (const token of tokens) {
+            let posting = this._searchIndex.get(token);
+            if (!posting) {
+                posting = new Set();
+                this._searchIndex.set(token, posting);
+            }
+            posting.add(record.id);
+        }
+    }
+
+    /**
+     * Normaliza URL para chave de índice.
+     * @param {string} url
+     * @returns {string}
+     * @private
+     */
+    _normalizeUrl(url) {
+        return String(url || '').trim().toLowerCase();
+    }
+
+    /**
+     * Tokeniza texto para indexação/busca (NFD, lowercase, alfanumérico).
+     * Remove acentos para casar "ferrovias" com "Ferrovias" etc.
+     * @param {string} text
+     * @returns {string[]}
+     * @private
+     */
+    _tokenize(text) {
+        if (!text || typeof text !== 'string') return [];
+
+        const normalized = text
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase();
+
+        const raw = normalized.match(/[a-z0-9]+/g) || [];
+        const unique = new Set();
+
+        for (const token of raw) {
+            if (token.length >= DeepTraceStorage.MIN_TOKEN_LENGTH) {
+                unique.add(token);
+            }
+        }
+
+        return [...unique];
+    }
+
+    /**
      * Carrega o histórico do localStorage.
      * Se não existir dados salvos, inicializa com dados de demonstração.
      * @returns {Array<Object>} Lista de análises
@@ -381,6 +605,7 @@ window.DeepTraceStorage = class DeepTraceStorage {
 
     /**
      * Persiste o histórico atual no localStorage.
+     * Índices de busca ficam só em memória (sem I/O extra).
      * @private
      */
     _saveToStorage() {

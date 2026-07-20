@@ -159,12 +159,28 @@
     <div class="container">
       <div class="section-title fade-in-up">
         <h2>Análises <span class="text-gradient">Recentes</span></h2>
-        <p>Vídeos verificados recentemente. Clique em qualquer card para ver os detalhes.</p>
+        <p>Vídeos verificados recentemente. Busque por título, alegação ou trecho da transcrição. Clique em qualquer card para ver os detalhes.</p>
       </div>
 
       <!-- ===== Filtros do Histórico ===== -->
-      <div class="history-filters fade-in-up" style="display: flex; gap: 12px; justify-content: center; margin-bottom: 24px; flex-wrap: wrap;">
-        <select id="filter-platform" class="select-filter" aria-label="Filtrar por rede social" style="background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--glass-border); padding: 8px 16px; border-radius: var(--radius-sm); outline: none; cursor: pointer; font-size: 0.85rem;">
+      <div class="history-filters fade-in-up">
+        <label class="history-search-wrap" for="history-search">
+          <span class="sr-only">Buscar no histórico</span>
+          <svg class="history-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="11" cy="11" r="7"></circle>
+            <path d="M20 20l-3.5-3.5"></path>
+          </svg>
+          <input
+            type="search"
+            id="history-search"
+            class="history-search-input"
+            placeholder="Buscar título, alegação, transcrição…"
+            autocomplete="off"
+            spellcheck="false"
+            aria-label="Buscar no banco de análises por título, alegação ou transcrição"
+          />
+        </label>
+        <select id="filter-platform" class="select-filter" aria-label="Filtrar por rede social">
           <option value="all">Todas as Redes</option>
           <option value="youtube">YouTube</option>
           <option value="tiktok">TikTok</option>
@@ -172,7 +188,7 @@
           <option value="twitter">Twitter/X</option>
           <option value="file">Arquivos Locais</option>
         </select>
-        <select id="filter-verdict" class="select-filter" aria-label="Filtrar por veredito" style="background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--glass-border); padding: 8px 16px; border-radius: var(--radius-sm); outline: none; cursor: pointer; font-size: 0.85rem;">
+        <select id="filter-verdict" class="select-filter" aria-label="Filtrar por veredito">
           <option value="all">Todos os Vereditos</option>
           <option value="verdadeiro">Verdadeiro</option>
           <option value="falso">Falso</option>

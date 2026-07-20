@@ -110,6 +110,7 @@ window.DeepTraceApp = class DeepTraceApp {
             ctaBtn: document.querySelector('#cta-btn'),
             filterPlatform: document.querySelector('#filter-platform'),
             filterVerdict: document.querySelector('#filter-verdict'),
+            historySearch: document.querySelector('#history-search'),
             menuToggle: document.querySelector('#menu-toggle'),
             headerNav: document.querySelector('#header-nav'),
             bottomSettingsBtn: document.querySelector('#bottom-settings-btn'),
@@ -122,7 +123,7 @@ window.DeepTraceApp = class DeepTraceApp {
      * @private
      */
     _registerEventListeners() {
-        const { analyzeInput, analyzeBtn, uploadInput, uploadArea, settingsBtn, ctaBtn, menuToggle, headerNav, filterPlatform, filterVerdict, bottomSettingsBtn, bottomNavItems } = this.elements;
+        const { analyzeInput, analyzeBtn, uploadInput, uploadArea, settingsBtn, ctaBtn, menuToggle, headerNav, filterPlatform, filterVerdict, historySearch, bottomSettingsBtn, bottomNavItems } = this.elements;
 
         // a) Botão analisar
         if (analyzeBtn) {
@@ -231,6 +232,22 @@ window.DeepTraceApp = class DeepTraceApp {
         }
         if (filterVerdict) {
             filterVerdict.addEventListener('change', () => this.handleFilterHistory());
+        }
+        if (historySearch) {
+            let searchTimer = null;
+            const runSearch = () => this.handleFilterHistory();
+            historySearch.addEventListener('input', () => {
+                // Debounce leve para evitar re-render a cada tecla
+                clearTimeout(searchTimer);
+                searchTimer = setTimeout(runSearch, 150);
+            });
+            historySearch.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    historySearch.value = '';
+                    runSearch();
+                    historySearch.blur();
+                }
+            });
         }
 
         // g2) Botão limpar histórico (delegação — renderizado dinamicamente)
@@ -593,11 +610,11 @@ window.DeepTraceApp = class DeepTraceApp {
             return;
         }
 
-        // Remove do cache antes de re-analisar
-        this.storage.history = this.storage.history.filter(
-            item => !(item.url && item.url.trim().toLowerCase() === url.trim().toLowerCase())
-        );
-        this.storage._saveToStorage();
+        // Remove do cache (e índices) antes de re-analisar
+        const cached = this.storage.getByUrl(url);
+        if (cached) {
+            this.storage.removeAnalysis(cached.id);
+        }
 
         await this.handleAnalyze();
     }
@@ -721,29 +738,14 @@ window.DeepTraceApp = class DeepTraceApp {
     }
 
     /**
-     * Filtra o histórico de acordo com a rede e o veredito selecionados.
+     * Filtra o histórico por busca textual (índice), rede e veredito.
      */
     handleFilterHistory() {
         const platform = this.elements.filterPlatform?.value || 'all';
         const verdict = this.elements.filterVerdict?.value || 'all';
-        
-        let analyses = this.storage.getHistory();
-        
-        if (platform !== 'all') {
-            analyses = analyses.filter(item => {
-                if (platform === 'file') return !item.url;
-                return (item.platform || '').toLowerCase() === platform;
-            });
-        }
-        
-        if (verdict !== 'all') {
-            analyses = analyses.filter(item => {
-                const v = (item.verdict || '').toLowerCase();
-                if (verdict === 'parcial') return v.includes('parcial');
-                return v.includes(verdict);
-            });
-        }
-        
+        const query = this.elements.historySearch?.value || '';
+
+        const analyses = this.storage.search(query, { platform, verdict });
         this.ui.renderHistoryCards(analyses);
     }
 

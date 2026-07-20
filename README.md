@@ -55,6 +55,7 @@ sequenceDiagram
 * **Âncora Temporal Dinâmica**: O motor do prompt injeta a data/hora real em tempo real para evitar alucinações comuns de IA sobre o ano corrente (ex: alegar que "ainda estamos em 2026").
 * **Análise Multimodal (Upload de Vídeo Local)**: Permite o upload de arquivos de vídeo de até 50MB. O arquivo é enviado de forma segura como dados binários inline para que a IA analise a coerência entre áudio e imagens em busca de manipulação de contexto.
 * **Histórico com Cache local FIFO**: Salva até 50 análises anteriores no LocalStorage, garantindo carregamento instantâneo.
+* **Busca indexada no banco local**: Índice invertido em memória sobre título, alegações, técnicas e transcrição (script) — lookups O(1) por ID/URL e pesquisa textual rápida sem I/O de rede.
 
 ---
 
