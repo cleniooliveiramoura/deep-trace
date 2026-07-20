@@ -270,12 +270,18 @@ window.DeepTraceUI = class DeepTraceUI {
     grid.innerHTML = '';
 
     if (!analyses || analyses.length === 0) {
+      const hasActiveSearch = Boolean(document.getElementById('history-search')?.value?.trim());
+      const emptyTitle = hasActiveSearch ? 'Nenhum resultado na busca' : 'Nenhuma análise encontrada';
+      const emptySub = hasActiveSearch
+        ? 'Tente outros termos, limpe a busca (Esc) ou ajuste os filtros de rede e veredito.'
+        : 'Cole um link de vídeo ou envie um arquivo acima para iniciar sua primeira auditoria de desinformação.';
+
       grid.innerHTML = `
         <div class="history-empty glass-card" style="text-align: center; padding: 48px 24px; width: 100%; grid-column: 1 / -1;">
           <div class="empty-icon" style="font-size: 3rem; margin-bottom: 16px; opacity: 0.7;">📊</div>
-          <p style="font-size: 1.1rem; font-weight: 600; color: var(--text-primary); margin-bottom: 8px;">Nenhuma análise encontrada</p>
+          <p style="font-size: 1.1rem; font-weight: 600; color: var(--text-primary); margin-bottom: 8px;">${emptyTitle}</p>
           <p class="empty-subtext" style="font-size: 0.85rem; color: var(--text-muted); max-width: 320px; margin: 0 auto 24px; line-height: 1.5;">
-            Cole um link de vídeo ou envie um arquivo acima para iniciar sua primeira auditoria de desinformação.
+            ${emptySub}
           </p>
           <a href="#analyze" class="btn-primary" style="display: inline-flex; align-items: center; gap: 8px; text-decoration: none; padding: 10px 20px; font-size: 0.85rem; border-radius: var(--radius-md); font-weight: 600; margin: 0 auto;">
             🔍 Analisar Novo Vídeo
