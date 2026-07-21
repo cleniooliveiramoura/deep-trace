@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', async () => {
-    const webAppUrl = 'https://deep-trace-nine.vercel.app';
+    const webAppUrl = 'https://deep-trace-analysis.vercel.app';
     
     // Expressões regulares de plataformas suportadas
     const supportedPatterns = {

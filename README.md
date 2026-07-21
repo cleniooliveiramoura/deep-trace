@@ -1,6 +1,6 @@
 # 🔍 DeepTrace — Engine de Fact-Checking & Combate à Desinformação
 
-[![Deploy Status](https://img.shields.io/badge/Deploy-Vercel-success?style=flat-square)](https://deep-trace-nine.vercel.app)
+[![Deploy Status](https://img.shields.io/badge/Deploy-Vercel-success?style=flat-square)](https://deep-trace-analysis.vercel.app)
 [![Chrome Extension](https://img.shields.io/badge/Chrome_Extension-Developer_Mode-cyan?style=flat-square)](#-extensão-chrome-instalação-local)
 [![API](https://img.shields.io/badge/AI_Engine-Gemini_2.0_Flash-blue?style=flat-square)](https://aistudio.google.com)
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
@@ -96,7 +96,7 @@ deepTrace/
 ## 🚀 Execução do Projeto
 
 A aplicação web está publicada e pronta para uso em:  
-👉 **[https://deep-trace-nine.vercel.app](https://deep-trace-nine.vercel.app)**
+👉 **[https://deep-trace-analysis.vercel.app](https://deep-trace-analysis.vercel.app)**
 
 ### Executando o Web App Localmente (Desenvolvimento)
 Como a aplicação utiliza módulos ES6 nativos, ela precisa rodar sob um servidor estático para evitar restrições de segurança do navegador ao carregar arquivos locais (`file://`).

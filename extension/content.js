@@ -1,5 +1,5 @@
 (function() {
-    const webAppUrl = 'https://deep-trace-nine.vercel.app';
+    const webAppUrl = 'https://deep-trace-analysis.vercel.app';
     let observer = null;
 
     /**
