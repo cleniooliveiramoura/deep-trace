@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "DeepTrace — Detector de Fake News",
+  "name": "DeepTrace \u2014 Detector de Fake News",
   "version": "1.0.1",
-  "description": "Analise a credibilidade de vídeos e discursos com inteligência artificial diretamente no seu navegador.",
+  "description": "Analise a credibilidade de v\u00eddeos e discursos com intelig\u00eancia artificial diretamente no seu navegador.",
   "permissions": [
     "tabs",
     "activeTab",
@@ -23,6 +23,7 @@
     },
     {
       "matches": [
+        "https://deep-trace-analysis.vercel.app/*",
         "https://deep-trace-nine.vercel.app/*",
         "http://localhost/*"
       ],
